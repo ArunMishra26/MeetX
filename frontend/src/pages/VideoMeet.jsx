@@ -63,7 +63,7 @@ export default function VideoMeetComponent() {
   useEffect(() => {
     console.log("HELLO");
     getPermissions();
-  });
+  }, []); // <== this stops infinite looping
 
   let getDisplayMedia = () => {
     if (screen) {
@@ -133,7 +133,11 @@ export default function VideoMeetComponent() {
   let getMedia = () => {
     setVideo(videoAvailable);
     setAudio(audioAvailable);
-    connectToSocketServer();
+
+    // ⚠️ delay connection until state is applied
+    setTimeout(() => {
+      connectToSocketServer();
+    }, 200);
   };
 
   let getUserMediaSuccess = (stream) => {
@@ -148,10 +152,13 @@ export default function VideoMeetComponent() {
 
     for (let id in connections) {
       if (id === socketIdRef.current) continue;
+      console.log("Local stream tracks:", stream.getTracks());
+      console.log("Sending stream to peer:", id);
 
       connections[id].addStream(window.localStream);
 
       connections[id].createOffer().then((description) => {
+        console.log("Creating offer for", id);
         console.log(description);
         connections[id]
           .setLocalDescription(description)
@@ -273,6 +280,8 @@ export default function VideoMeetComponent() {
 
   let gotMessageFromServer = (fromId, message) => {
     var signal = JSON.parse(message);
+    console.log("Signal received from:", fromId);
+    console.log("Signal data:", signal);
 
     if (fromId !== socketIdRef.current) {
       if (signal.sdp) {
@@ -330,6 +339,8 @@ export default function VideoMeetComponent() {
           connections[socketListId] = new RTCPeerConnection(
             peerConfigConnections
           );
+          console.log("New PeerConnection created for:", socketListId);
+
           // Wait for their ice candidate
           connections[socketListId].onicecandidate = function (event) {
             if (event.candidate != null) {
@@ -340,10 +351,12 @@ export default function VideoMeetComponent() {
               );
             }
           };
-
-          // Wait for their video stream
+          // fallback for modern browsers using ontrack
           connections[socketListId].ontrack = (event) => {
-            const remoteStream = event.streams[0];
+            const [stream] = event.streams;
+            if (!stream) return;
+
+            console.log("📡 ontrack fired with stream", stream);
 
             let videoExists = videoRef.current.find(
               (video) => video.socketId === socketListId
@@ -353,7 +366,7 @@ export default function VideoMeetComponent() {
               setVideos((videos) => {
                 const updatedVideos = videos.map((video) =>
                   video.socketId === socketListId
-                    ? { ...video, stream: remoteStream }
+                    ? { ...video, stream: stream }
                     : video
                 );
                 videoRef.current = updatedVideos;
@@ -362,7 +375,7 @@ export default function VideoMeetComponent() {
             } else {
               let newVideo = {
                 socketId: socketListId,
-                stream: remoteStream,
+                stream: stream,
                 autoplay: true,
                 playsinline: true,
               };
@@ -599,9 +612,12 @@ export default function VideoMeetComponent() {
                   ref={(ref) => {
                     if (ref && video.stream) {
                       ref.srcObject = video.stream;
+                      console.log("✅ Set remote stream for:", video.socketId);
                     }
                   }}
                   autoPlay
+                  playsInline
+                  muted={false}
                 ></video>
               </div>
             ))}

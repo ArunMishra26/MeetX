@@ -34,9 +34,9 @@ export default function VideoMeetComponent() {
   const [audioAvailable, setAudioAvailable] = useState(true);
   const [video, setVideo] = useState([]);
   const [audio, setAudio] = useState();
-  const [screen, setScreen] = useState(false);
+  const [screen, setScreen] = useState();
   const [showModal, setModal] = useState(true);
-  const [screenAvailable, setScreenAvailable] = useState(false);
+  const [screenAvailable, setScreenAvailable] = useState();
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [newMessages, setNewMessages] = useState(3);
@@ -48,6 +48,7 @@ export default function VideoMeetComponent() {
     console.log("Video permission init");
     getPermissions();
     return () => {
+      // Cleanup on unmount
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
@@ -61,9 +62,11 @@ export default function VideoMeetComponent() {
     try {
       const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
       setVideoAvailable(true);
+      console.log("Video permission true");
 
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setAudioAvailable(true);
+      console.log("Audio permission true");
 
       setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia);
 
@@ -102,9 +105,10 @@ export default function VideoMeetComponent() {
     window.localStream = stream;
     localVideoref.current.srcObject = stream;
 
+    // Add tracks to all existing connections
     Object.keys(connections).forEach(id => {
       if (id === socketIdRef.current) return;
-
+      
       stream.getTracks().forEach((track) => {
         try {
           connections[id].addTrack(track, stream);
@@ -129,6 +133,7 @@ export default function VideoMeetComponent() {
       socketIdRef.current = socketRef.current.id;
 
       socketRef.current.on("user-left", (id) => {
+        console.log("User left:", id);
         if (connections[id]) {
           connections[id].close();
           delete connections[id];
@@ -139,20 +144,30 @@ export default function VideoMeetComponent() {
       socketRef.current.on("signal", gotMessageFromServer);
 
       socketRef.current.on("user-joined", (id, clients) => {
+        console.log("New user joined:", id, "All clients:", clients);
+        
+        // Create connection for each new client
         clients.forEach((clientId) => {
           if (clientId === socketIdRef.current || connections[clientId]) return;
 
+          // Create new RTCPeerConnection
           connections[clientId] = new RTCPeerConnection(peerConfigConnections);
           peerRefs.current[clientId] = connections[clientId];
 
+          // ICE candidate handler
           connections[clientId].onicecandidate = (event) => {
             if (event.candidate) {
+              console.log("Sending ICE candidate to:", clientId);
               socketRef.current.emit("signal", clientId, JSON.stringify({ ice: event.candidate }));
             }
           };
 
+          // Track handler
           connections[clientId].ontrack = (event) => {
+            console.log("Received track from:", clientId);
             const [stream] = event.streams;
+            
+            // Update state with new stream
             setVideos((prev) => {
               const exists = prev.find((v) => v.socketId === clientId);
               if (exists) {
@@ -164,6 +179,7 @@ export default function VideoMeetComponent() {
             });
           };
 
+          // Add local tracks to new connection
           if (window.localStream) {
             window.localStream.getTracks().forEach((track) => {
               try {
@@ -174,10 +190,12 @@ export default function VideoMeetComponent() {
             });
           }
 
+          // Create offer if we're the initiator
           if (id === socketIdRef.current) {
             connections[clientId].createOffer()
               .then(offer => connections[clientId].setLocalDescription(offer))
               .then(() => {
+                console.log("Sending offer to:", clientId);
                 socketRef.current.emit("signal", clientId, JSON.stringify({ 
                   sdp: connections[clientId].localDescription 
                 }));
@@ -193,7 +211,10 @@ export default function VideoMeetComponent() {
 
   const gotMessageFromServer = (fromId, message) => {
     const signal = JSON.parse(message);
+    console.log("Signal from:", fromId, signal);
+
     if (!connections[fromId]) {
+      console.log("Creating new connection for signal from:", fromId);
       connections[fromId] = new RTCPeerConnection(peerConfigConnections);
       
       connections[fromId].onicecandidate = (event) => {
@@ -203,6 +224,7 @@ export default function VideoMeetComponent() {
       };
 
       connections[fromId].ontrack = (event) => {
+        console.log("New track from:", fromId);
         const [stream] = event.streams;
         setVideos(videos => [...videos, { socketId: fromId, stream }]);
       };
@@ -218,6 +240,7 @@ export default function VideoMeetComponent() {
       const desc = new RTCSessionDescription(signal.sdp);
       connections[fromId].setRemoteDescription(desc)
         .then(() => {
+          console.log("Successfully set remote description for:", fromId);
           if (signal.sdp.type === "offer") {
             return connections[fromId].createAnswer()
               .then(answer => connections[fromId].setLocalDescription(answer))
@@ -260,34 +283,8 @@ export default function VideoMeetComponent() {
 
   const handleVideo = () => setVideo(!video);
   const handleAudio = () => setAudio(!audio);
-  const handleScreen = async () => {
-    if (screen) {
-      const tracks = window.localStream.getTracks();
-      tracks.forEach((track) => track.stop());
-      window.localStream = null;
-      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio });
-      localVideoref.current.srcObject = videoStream;
-
-      videoStream.getTracks().forEach((track) => {
-        Object.keys(connections).forEach(id => {
-          connections[id].addTrack(track, videoStream);
-        });
-      });
-    } else {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      localVideoref.current.srcObject = screenStream;
-
-      screenStream.getTracks().forEach((track) => {
-        Object.keys(connections).forEach(id => {
-          connections[id].addTrack(track, screenStream);
-        });
-      });
-    }
-    setScreen(!screen);
-  };
-  
+  const handleScreen = () => setScreen(!screen);
   const handleMessage = (e) => setMessage(e.target.value);
-  
   const handleEndCall = () => {
     try {
       let tracks = localVideoref.current.srcObject?.getTracks() || [];

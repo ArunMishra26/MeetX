@@ -53,7 +53,7 @@ npm install
 
 # Start Backend Server
 cd backend
-node index.js
+node app.js
 
 # Start Frontend
 cd frontend

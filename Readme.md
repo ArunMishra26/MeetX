@@ -23,7 +23,7 @@ Can Visit on  https://meetx-1-8vl0.onrender.com
 | --------------------------- | --------------------------------- | ------------------------------------------------------ |
 | **Frontend**                | React.js                          | Component-based UI development                         |
 |                             | Material UI (MUI)                 | Pre-designed React components and UI elements          |
-|                             | HTML5, CSS3, JavaScript           | Base layout, styling, and interactivity                |
+|                             | HTML, CSS, JavaScript             | Base layout, styling, and interactivity                |
 | **Backend**                 | Node.js                           | JavaScript runtime environment for server-side logic   |
 |                             | Express.js                        | Minimal and flexible Node.js web framework             |
 | **Real-Time Communication** | Socket.IO                         | WebSocket-based real-time bi-directional communication |

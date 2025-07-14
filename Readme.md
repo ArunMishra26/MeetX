@@ -2,9 +2,8 @@
 
 MeetX is a full-stack video conferencing web application built using **React**, **Socket.IO**, and **WebRTC**. It enables seamless one-on-one and small group video calls directly in the browser — no plugins required!
 
-![MeetX Demo](https://meetx-1-8vl0.onrender.com)
+Can Visit on  https://meetx-1-8vl0.onrender.com
 
----
 
 ## 🚀 Features
 
@@ -31,7 +30,6 @@ MeetX is a full-stack video conferencing web application built using **React**, 
 |                             | WebRTC                            | Peer-to-peer video/audio connection between clients    |
 | **Media APIs**              | MediaStream API                   | Captures user video, audio, and screen                 |
 |                             | getUserMedia(), getDisplayMedia() | Access camera, mic, and screen with permissions        |
-                    |
 
 
 ## 📦 Installation
